@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Signal Dashboard</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --card:           #201f1e;
+    --card-2:         #262524;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --good:           #0ca30c;
+    --warning:        #fab219;
+    --critical:       #e66767;
+    --good-bg:        rgba(12,163,12,0.14);
+    --warning-bg:     rgba(250,178,25,0.16);
+    --critical-bg:    rgba(230,103,103,0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    line-height: 1.45;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header.top { margin-bottom: 20px; }
+  header.top h1 { font-size: 22px; margin: 0 0 4px; }
+  header.top .sub { color: var(--text-secondary); font-size: 14px; margin: 0; }
+
+  .tab-bar {
+    display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: transparent; border: none; color: var(--text-secondary);
+    font-size: 14px; padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--series-1); font-weight: 650; }
+  .tab-btn:hover:not(.active) { color: var(--text-primary); }
+
+  .stat-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px; margin-bottom: 28px;
+  }
+  .stat-tile {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .stat-tile .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .stat-tile .value { font-size: 26px; font-weight: 650; }
+  .stat-tile .delta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  section { margin-bottom: 32px; }
+  section > h2 {
+    font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-secondary); margin: 0 0 12px; font-weight: 650;
+  }
+
+  .pulse-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .pulse-card p { margin: 0 0 10px; font-size: 14.5px; }
+  .pulse-card p:last-child { margin-bottom: 0; }
+  .pulse-card .headline { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+
+  .domain-list { display: grid; gap: 10px; }
+  .domain-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .domain-item .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--series-1);
+    margin-top: 6px; flex-shrink: 0;
+  }
+
+  .source-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px;
+  }
+  .source-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .source-card .name { font-weight: 650; font-size: 14px; margin-bottom: 4px; }
+  .source-card .count { font-size: 22px; font-weight: 650; color: var(--series-1); }
+  .source-card .desc { font-size: 12.5px; color: var(--text-secondary); margin-top: 6px; margin-bottom: 10px; }
+  .source-card .links { display: flex; flex-direction: column; gap: 5px; }
+  .source-card .links a {
+    font-size: 12px; color: var(--series-1); text-decoration: none; word-break: break-word;
+  }
+  .source-card .links a:hover { text-decoration: underline; }
+
+  figure.chart {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px 16px; margin: 0;
+  }
+  figure.chart figcaption { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-label { width: 230px; flex-shrink: 0; font-size: 12.5px; color: var(--text-primary); text-align: right; }
+  .bar-track { flex: 1; background: var(--gridline); border-radius: 4px; height: 20px; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; background: var(--series-1); }
+  .bar-value { font-size: 12px; color: var(--text-secondary); margin-left: 8px; white-space: nowrap; }
+  .chart-note { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; }
+  .table-toggle {
+    font-size: 12px; border: 1px solid var(--border); background: transparent;
+    color: var(--text-secondary); border-radius: 6px; padding: 5px 10px; cursor: pointer; margin-top: 12px;
+  }
+  table.data-table {
+    width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; display: none;
+  }
+  table.data-table.show { display: table; }
+  table.data-table th, table.data-table td {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gridline);
+  }
+
+  .legend-row { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; font-size: 13px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+  .prob-list { display: grid; gap: 12px; }
+  .prob-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .prob-head {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;
+  }
+  .prob-rank-title { display: flex; gap: 10px; align-items: baseline; }
+  .prob-rank { font-size: 15px; font-weight: 700; color: var(--text-muted); }
+  .prob-title { font-weight: 650; font-size: 15px; }
+  .status-badge {
+    font-size: 11px; font-weight: 650; padding: 4px 9px; border-radius: 999px;
+    white-space: nowrap; height: fit-content; display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  }
+  .status-badge.good { background: var(--good-bg); color: var(--good); }
+  .status-badge.warning { background: var(--warning-bg); color: var(--warning); }
+  .status-badge.critical { background: var(--critical-bg); color: var(--critical); }
+
+  .prob-part { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 6px 0; font-size: 13.5px; }
+  .prob-part .k { color: var(--text-muted); font-weight: 650; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 2px; }
+  .prob-part .v { color: var(--text-secondary); }
+  .prob-part .v a { color: var(--series-1); text-decoration: none; }
+  .prob-part .v a:hover { text-decoration: underline; }
+  .prob-part.problem .v { color: var(--text-primary); }
+
+  footer { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Market Signal Dashboard</h1>
+    <p class="sub">Consolidated scan across Reddit, G2, Capterra, Trustpilot, App Store / Play Store reviews, Hacker News, government &amp; legal filings, and job-posting data.</p>
+  </header>
+
+  <div class="tab-bar" id="tab-bar"></div>
+  <div id="tab-content"></div>
+
+  <footer>Built from the market scan compiled July 2026. All source links are cited inline.</footer>
+</div>
+
+<script>
+// ---- Data, keyed by day. Add a new date key here each time a new scan runs
+// and a new tab appears automatically. ----
+const days = {
+  "2026-07-27": {
+    label: "Jul 27",
+    stats: [
+      {label:"Problems surfaced", value:"20", delta:"Ranked, deduplicated, sourced"},
+      {label:"Real sources cited", value:"60+", delta:"No fabricated links"},
+      {label:"Top verified pain point", value:"$19.7B/yr", delta:"Health claim denial rework (AHA)"},
+      {label:"Open-whitespace findings", value:"7 of 20", delta:"No dominant incumbent yet"}
+    ],
+    pulse: {
+      headline: "Highest-leverage signal this scan: health insurance claim denials are the largest verified, least-owned pain point on the market.",
+      paras: [
+        "Hospitals lose $19.7 billion a year fighting denied claims, and under 1% of denials ever get appealed even though most full appeals succeed. No single company owns the loop from patient to payer yet, which is rare for a problem this large and this well documented.",
+        "Two other patterns repeat across unrelated categories: intentional cancellation friction (gyms, streaming, SaaS subscriptions all use the same playbook) and manual reconciliation work that companies still staff with humans instead of software (MSP billing, insurance agencies, GL reconciliation, field service accounting). Both point to the same underlying opportunity: workflows where the incumbent's own customers are the ones complaining loudest."
+      ]
+    },
+    domain: [
+      "The government is already cracking down on gyms, landlords, and subscription traps. That makes it easier to sell a fix, people already expect this to get cleaned up.",
+      "The best ideas sit inside products people already use and pay for, like Coupa, ServiceTitan, and Waystar, not in brand-new categories nobody's heard of.",
+      "If thousands of companies are paying people to do something by hand, like checking insurance or matching numbers between two systems, that's proof software could do it instead.",
+      "A few competitors in a space isn't a red flag. It usually means people are already paying for this, which is a good sign, not a reason to skip it.",
+      "The problems at the bottom of this list are still real. They're just harder to price out and slower to sell into. Watch them, don't start there."
+    ],
+    sources: [
+      {
+        name: "G2 / Capterra / Trustpilot",
+        count: 8,
+        desc: "1-2 star B2B software reviews, insurance agency, procurement, field service, MSP, medical billing, credentialing.",
+        links: [
+          ["EZClaim reviews", "https://www.g2.com/products/ezclaim-ezclaim/reviews"],
+          ["ConnectWise Manage reviews", "https://www.capterra.com/p/107931/ConnectWise-Manage/reviews/"],
+          ["Applied Epic reviews", "https://www.capterra.com/p/70671/Applied-Epic/reviews/?page=3"],
+          ["Coupa reviews", "https://www.capterra.com/p/115928/Coupa/reviews/?page=3"],
+          ["ServiceTitan reviews", "https://www.trustpilot.com/review/servicetitan.com"]
+        ]
+      },
+      {
+        name: "Government & legal filings",
+        count: 5,
+        desc: "FTC actions, state AG settlements, AHA and BLS data, health denials, neobank freezes, rental fees, claims adjusters.",
+        links: [
+          ["AHA denial-cost report", "https://www.aha.org/aha-center-health-innovation-market-scan/2024-04-02-payer-denial-tactics-how-confront-20-billion-problem"],
+          ["ProPublica on Chime freezes", "https://www.propublica.org/article/chime/amp"],
+          ["Landlord junk-fee FTC case", "https://www.aol.com/finance/landlord-overcharged-renters-hundreds-millions-080100593.html"],
+          ["BLS claims adjuster outlook", "https://www.bls.gov/ooh/business-and-financial/claims-adjusters-appraisers-examiners-and-investigators.htm"]
+        ]
+      },
+      {
+        name: "Hacker News",
+        count: 4,
+        desc: "Underserved-industry threads, alt-investment back office, materials distribution, construction QC, law enforcement RMS.",
+        links: [
+          ["\"What industries are underserved by software?\"", "https://news.ycombinator.com/item?id=22496129"]
+        ]
+      },
+      {
+        name: "Job postings / labor data",
+        count: 4,
+        desc: "Recurring job titles across employers, GL reconciliation, vendor compliance, credentialing, medical billing.",
+        links: [
+          ["Reconciliation specialist postings", "https://www.indeed.com/q-reconciliation-specialist-jobs.html"],
+          ["Vendor compliance coordinator posting", "https://www.indeed.com/viewjob?jk=b77dc5ea2b321430"],
+          ["Credentialing specialist postings", "https://www.glassdoor.com/Job/credentialing-specialist-remote-jobs-SRCH_KO0,31.htm"]
+        ]
+      },
+      {
+        name: "Reddit",
+        count: 2,
+        desc: "Consumer complaint threads with high engagement, gym cancellation, subscription dark patterns.",
+        links: [
+          ["Gym cancellation thread, 65k+ upvotes", "https://www.reddit.com/r/mildlyinfuriating/comments/wwkiso/message_i_received_when_attempting_to_cancel_my/"]
+        ]
+      },
+      {
+        name: "App Store / Play Store reviews",
+        count: 1,
+        desc: "Aggregated dating-app reviews flagging bots and scam redirects across platforms.",
+        links: [
+          ["Dating app scam review roundup", "https://unstar.app/blog/dating-app-scams-tinder-bumble-hinge-bots-catfishing-2026"]
+        ]
+      }
+    ],
+    chart: [
+      {rank:1, title:"Health insurance claim denial & appeals automation", size:"$19.7B/yr", basis:"AHA — verified hospital rework spend"},
+      {rank:2, title:"Universal subscription & membership cancellation defense", size:"~$1,000M/yr", basis:"10-15M households × modest annual fee"},
+      {rank:3, title:"Neobank account freeze crisis resolution", size:"~$300M/yr", basis:"Affected-user floor, support/reputational cost"},
+      {rank:4, title:"SaaS access deprovisioning & offboarding security", size:"~$700M/yr", basis:"350k US 50+ employee companies × $2k/yr"},
+      {rank:5, title:"Rental application fee transparency & negotiation", size:"~$75M/yr", basis:"5M of ~16M annual moves × modest fee"},
+      {rank:6, title:"Small-practice medical billing & eligibility verification", size:"~$75M/yr", basis:"10% of 250k practices × $3k/yr"},
+      {rank:7, title:"MSP billing & ticket-to-invoice reconciliation", size:"~$225M/yr", basis:"40,000 MSPs × $3k-7k/yr tooling"},
+      {rank:8, title:"Insurance agency double-entry elimination", size:"~$200M/yr", basis:"40,000 agencies × $5k/yr"},
+      {rank:9, title:"Provider credentialing automation & interoperability", size:"~$300M/yr", basis:"Practice-level credentialing spend, $2k-5k/yr"},
+      {rank:10, title:"Field service accounting reconciliation", size:"~$300M/yr", basis:"ServiceTitan-class customer base add-on spend"}
+    ],
+    ideas: [
+      {rank:1, title:"Health insurance claim denial & appeals automation", status:"good",
+        problem:"Insurers deny claims using rules nobody explains clearly, and almost nobody appeals even though most appeals win.",
+        description:"Hospitals spend $19.7 billion a year fighting denials. Patients rarely challenge a denial even when they'd likely win. This touches roughly 950,000 US doctors and nearly all 300 million insured Americans. A few small startups are working on pieces of this, but nobody owns the whole process yet.",
+        solution:"A tool that reads your denial letter, explains in plain English why you were denied, and writes the appeal for you with the right medical codes, sold to patients directly and licensed to hospital billing teams.",
+        link:"https://www.aha.org/aha-center-health-innovation-market-scan/2024-04-02-payer-denial-tactics-how-confront-20-billion-problem"},
+      {rank:2, title:"Universal subscription & membership cancellation defense", status:"good",
+        problem:"Gyms, streaming apps, and software companies make cancelling painful on purpose, phone calls, surveys, hidden buttons, so people just keep paying.",
+        description:"A 65,000-upvote Reddit thread, an FTC case against a major gym chain, and a study of 67 subscription services all show this is standard practice, not a one-off. It touches nearly every US household with a subscription.",
+        solution:"A service that cancels anything on your behalf and watches for price hikes, going further than spend-tracking apps by actually making the call, chat, or paperwork happen for you.",
+        link:"https://www.reddit.com/r/mildlyinfuriating/comments/wwkiso/message_i_received_when_attempting_to_cancel_my/"},
+      {rank:3, title:"Neobank account freeze crisis resolution", status:"good",
+        problem:"Apps like Chime and Cash App can freeze your whole account for \"fraud review\" with no fast way to reach a real person and get your money back.",
+        description:"Chime has had more Better Business Bureau complaints than Wells Fargo despite far fewer customers. Cash App paid a $45 million settlement over the same pattern. This hits tens of millions of neobank users, often people who can least afford to lose access to their paycheck.",
+        solution:"A rapid identity-verification and appeal service that neobanks plug into, so a frozen account gets resolved in hours instead of weeks.",
+        link:"https://www.propublica.org/article/chime/amp"},
+      {rank:4, title:"SaaS access deprovisioning & offboarding security", status:"good",
+        problem:"When someone quits, IT usually can't find or shut off every app that person had access to, so old logins stay open for weeks.",
+        description:"Only 14% of companies have a real process for this, and access can stay live 15 days after being \"revoked.\" This affects almost every company running more than a handful of software tools with any employee turnover.",
+        solution:"A tool that scans a company's whole software stack, finds every account tied to someone who left, and shuts them all off in one click.",
+        link:"https://nhimg.org/community/nhi-support-guidance-forum/saas-offboarding-and-access-revocation-where-do-teams-break-down/"},
+      {rank:5, title:"Rental application fee transparency & negotiation", status:"good",
+        problem:"Renters get hit with stacked fees, application fees, \"benefit\" charges, admin fees, that can add up to more than the rent, and rarely get refunded even if rejected.",
+        description:"State attorneys general have sued major landlords over this, and the FTC has its own case against a different landlord for hundreds of millions in hidden fees. It affects roughly 44 million US renter households.",
+        solution:"A tool that shows renters the true all-in cost before they apply, flags junk fees, and helps them get refunds when a landlord overcharges.",
+        link:"https://www.aol.com/finance/landlord-overcharged-renters-hundreds-millions-080100593.html"},
+      {rank:6, title:"Small-practice medical billing & eligibility verification", status:"warning",
+        problem:"Billing software sold to small medical practices charges extra for basic features, so staff redo the same work by hand, and someone still calls insurers to check coverage before every visit.",
+        description:"One widely-used billing tool has repeated 1-star complaints for this exact problem. Almost 11,000 \"medical billing\" jobs are open in the US right now, a sign this still isn't automated.",
+        solution:"An all-in-one billing and insurance-check tool priced for small practices instead of hospital systems, so they get what bigger practices already have without the enterprise price tag.",
+        link:"https://www.g2.com/products/ezclaim-ezclaim/reviews"},
+      {rank:7, title:"MSP billing & ticket-to-invoice reconciliation", status:"warning",
+        problem:"IT service companies track support tickets, vendor bills, and client invoices in separate systems, so someone has to match them by hand, and mistakes cost real revenue.",
+        description:"Reviews of the leading tool in this space call it slow and error-prone for exactly this. Competitors just launched features to patch it, which confirms real demand. This affects roughly 40,000 IT service providers in North America.",
+        solution:"A billing layer that sits on top of existing help-desk software and automatically matches tickets to invoices so nothing gets missed or under-billed.",
+        link:"https://www.capterra.com/p/107931/ConnectWise-Manage/reviews/"},
+      {rank:8, title:"Insurance agency double-entry elimination", status:"warning",
+        problem:"Insurance agents type the same client and policy information two or three times because their software doesn't pull it in automatically from insurance carriers.",
+        description:"Reviewers of both leading agency management tools complain about this exact problem. This affects roughly 40,000 independent US insurance agencies.",
+        solution:"A sync layer that connects directly to carrier portals and auto-fills the agency's software, cutting out the repeat typing entirely.",
+        link:"https://www.capterra.com/p/70671/Applied-Epic/reviews/?page=3"},
+      {rank:9, title:"Provider credentialing automation & interoperability", status:"warning",
+        problem:"New doctors can't get paid by insurance for three to four months because the approval paperwork is slow and doesn't connect to the industry's main database.",
+        description:"Users of a leading credentialing tool are specifically asking for this connection and don't have it. This affects most of the roughly 250,000 US physician practices, every time they hire someone new.",
+        solution:"A credentialing tool built around a live connection to that core database, cutting approval time from months to weeks.",
+        link:"https://www.g2.com/products/modio-health/reviews"},
+      {rank:10, title:"Field service accounting reconciliation", status:"warning",
+        problem:"The top software for HVAC, plumbing, and similar businesses doesn't sync properly with QuickBooks, so office staff spend far longer than they should reprocessing invoices and payments by hand.",
+        description:"One reviewer said her job took ten times longer because of this exact sync failure. This affects a market of over 100,000 field service technicians.",
+        solution:"A lightweight accounting bridge that sits between field service software and QuickBooks and fixes the sync, giving office staff their time back.",
+        link:"https://www.trustpilot.com/review/servicetitan.com"},
+      {rank:11, title:"Dating app bot & scam trust-and-safety infrastructure", status:"warning",
+        problem:"Dating apps are full of bots and scammers who match instantly and try to move the conversation to Telegram or WhatsApp to run romance scams.",
+        description:"This shows up across multiple major dating apps, not just one, and romance scams cost people billions of dollars a year. It affects tens of millions of active daters.",
+        solution:"A detection layer that dating apps can plug into to catch and block bot accounts and scam patterns before real users ever see them.",
+        link:"https://unstar.app/blog/dating-app-scams-tinder-bumble-hinge-bots-catfishing-2026"},
+      {rank:12, title:"Claims adjuster task automation (P&C)", status:"warning",
+        problem:"Insurance companies still use a lot of manual labor to review car and home damage claims, even as government data shows this job disappearing to automation.",
+        description:"The Bureau of Labor Statistics projects a 5% decline in this job by 2034 and names automation as the reason. There are currently 356,100 people doing this job.",
+        solution:"A tool that reviews damage photos and claim details automatically, letting adjusters handle far more claims with the same headcount.",
+        link:"https://www.bls.gov/ooh/business-and-financial/claims-adjusters-appraisers-examiners-and-investigators.htm"},
+      {rank:13, title:"Mid-market general ledger reconciliation automation", status:"warning",
+        problem:"Companies in banking, healthcare, and other industries still hire people whose whole job is manually matching numbers between two systems.",
+        description:"The exact same job title shows up in job postings across completely unrelated industries. The leading software in this category is priced for big companies only.",
+        solution:"A reconciliation tool priced and built for the mid-size companies today's enterprise tools ignore.",
+        link:"https://www.indeed.com/q-reconciliation-specialist-jobs.html"},
+      {rank:14, title:"Alternative-investment fund back-office software", status:"good",
+        problem:"Smaller investment funds still run portfolio tracking and investor reporting on spreadsheets because the good software is built and priced only for big funds.",
+        description:"This was raised independently by multiple people discussing underserved software markets. It affects thousands of smaller funds worldwide.",
+        solution:"A stripped-down, affordable fund administration tool built specifically for funds too small for the enterprise players.",
+        link:"https://news.ycombinator.com/item?id=22496129"},
+      {rank:15, title:"Restaurant & hourly workforce scheduling compliance guarantee", status:"critical",
+        problem:"The leading scheduling apps for restaurants crash, log people out, and miscalculate hours, the exact thing they're supposed to prevent under new labor laws.",
+        description:"Multiple independent reviewers across different industries report the same crashing and miscalculation problems. It affects hundreds of thousands of restaurant and retail locations, especially in states with new scheduling laws.",
+        solution:"A narrower add-on that guarantees compliance with fair-scheduling laws, sold alongside existing scheduling software instead of trying to replace it.",
+        link:"https://www.capterra.com/p/123038/7shifts-Restaurant-Scheduling/reviews/"},
+      {rank:16, title:"Enterprise procurement exception handling", status:"critical",
+        problem:"A leading procurement platform doesn't let staff fix a mistake once an invoice or purchase order is submitted, forcing people to work around the system.",
+        description:"Reviewers across different industries describe the same rigid, unforgiving process. This affects large companies with accounts payable and procurement teams in the thousands.",
+        solution:"An add-on that plugs into existing procurement software and handles corrections and disputes the main platform can't.",
+        link:"https://www.capterra.com/p/115928/Coupa/reviews/?page=3"},
+      {rank:17, title:"Vendor & contract compliance coordination (COI tracking)", status:"critical",
+        problem:"Companies that work with subcontractors hire people whose whole job is tracking insurance certificates and contract renewal dates by hand.",
+        description:"This exact job title is posted by many different companies. A few funded startups already compete here.",
+        solution:"A unified tracking tool that combines what several smaller competitors do separately, winning on being simpler and cheaper.",
+        link:"https://www.indeed.com/viewjob?jk=b77dc5ea2b321430"},
+      {rank:18, title:"Niche building-materials distributor software", status:"good",
+        problem:"Mid-size distributors of specialty building materials still run their business on Excel because so few software options serve this specific supply chain.",
+        description:"Raised by people discussing underserved software niches. It affects mid-size distributors and fabricators in a multi-billion-dollar materials category.",
+        solution:"Vertical software built specifically for this supply chain's quoting, inventory, and order tracking needs.",
+        link:"https://news.ycombinator.com/item?id=22496129"},
+      {rank:19, title:"Construction component manufacturing QC", status:"good",
+        problem:"Manufacturers of things like roof trusses don't have good tools to catch quality defects or track how many hours temp workers actually spend on a job.",
+        description:"Raised by people discussing underserved software niches. It affects thousands of manufacturers feeding residential construction.",
+        solution:"A camera-based quality-check tool paired with simple labor-hour tracking, built for this specific type of factory floor.",
+        link:"https://news.ycombinator.com/item?id=22496129"},
+      {rank:20, title:"Law enforcement records management modernization", status:"critical",
+        problem:"Most police department record-keeping software is old, clunky, and hard to use, described by people in the industry as \"abominable.\"",
+        description:"This affects roughly 18,000 US police departments. Existing vendors win contracts through long relationships instead of better software.",
+        solution:"Modern records software aimed at winning smaller, newer departments first, before competing for the big legacy contracts.",
+        link:"https://news.ycombinator.com/item?id=22496129"}
+    ]
+  }
+};
+
+const statusLabel = {good: "Open", warning: "Emerging", critical: "Crowded"};
+
+function parseSize(s) {
+  const m = s.match(/\$([\d,.]+)([MB])/);
+  if (!m) return 1;
+  let v = parseFloat(m[1].replace(/,/g,''));
+  if (m[2] === 'B') v *= 1000;
+  return v;
+}
+
+function renderDay(dateKey) {
+  const d = days[dateKey];
+  const el = document.createElement('div');
+
+  // stats
+  const statRow = document.createElement('div');
+  statRow.className = 'stat-row';
+  d.stats.forEach(s => {
+    statRow.innerHTML += `<div class="stat-tile"><div class="label">${s.label}</div><div class="value">${s.value}</div><div class="delta">${s.delta}</div></div>`;
+  });
+  el.appendChild(statRow);
+
+  // pulse
+  const pulseSec = document.createElement('section');
+  pulseSec.innerHTML = `<h2>Pulse check</h2><div class="pulse-card"><div class="headline">${d.pulse.headline}</div>${d.pulse.paras.map(p=>`<p>${p}</p>`).join('')}</div>`;
+  el.appendChild(pulseSec);
+
+  // domain
+  const domainSec = document.createElement('section');
+  domainSec.innerHTML = `<h2>Domain relevance — what this means for building something here</h2><div class="domain-list">${d.domain.map(x=>`<div class="domain-item"><div class="dot"></div><div>${x}</div></div>`).join('')}</div>`;
+  el.appendChild(domainSec);
+
+  // sources
+  const sourceSec = document.createElement('section');
+  sourceSec.innerHTML = `<h2>Source mix</h2><div class="source-grid">${d.sources.map(s => `
+    <div class="source-card">
+      <div class="name">${s.name}</div>
+      <div class="count">${s.count}</div>
+      <div class="desc">${s.desc}</div>
+      <div class="links">${s.links.map(l => `<a href="${l[1]}" target="_blank" rel="noopener">${l[0]} ↗</a>`).join('')}</div>
+    </div>`).join('')}</div>`;
+  el.appendChild(sourceSec);
+
+  // chart
+  const chartSec = document.createElement('section');
+  const chartId = 'bar-chart-' + dateKey;
+  const tableId = 'market-table-' + dateKey;
+  chartSec.innerHTML = `<h2>Conservative market size — top 10</h2>
+    <figure class="chart">
+      <figcaption>Rough, deliberately conservative estimate of annual addressable spend ($M), sorted by size. Health insurance denials is verified (AHA); the rest are back-of-envelope floors built from named counts × plausible price points, not vendor marketing figures.</figcaption>
+      <div id="${chartId}"></div>
+      <div class="chart-note">Scale: log-adjusted bar widths so #1 doesn't flatten the other nine — see table view for exact figures.</div>
+      <button class="table-toggle" onclick="document.getElementById('${tableId}').classList.toggle('show')">Show table view</button>
+      <table class="data-table" id="${tableId}">
+        <thead><tr><th>Rank</th><th>Problem</th><th>Estimate</th><th>Basis</th></tr></thead>
+        <tbody>${d.chart.map(p=>`<tr><td>${p.rank}</td><td>${p.title}</td><td>${p.size}</td><td>${p.basis}</td></tr>`).join('')}</tbody>
+      </table>
+    </figure>`;
+  el.appendChild(chartSec);
+
+  // ideas
+  const ideaSec = document.createElement('section');
+  ideaSec.innerHTML = `<h2>All 20, ranked</h2>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--good)"></div>Open whitespace — no dominant player</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--warning)"></div>Emerging competition — early/small players</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--critical)"></div>Crowded — well-funded incumbents</div>
+    </div>
+    <div class="prob-list">${d.ideas.map(p => `
+      <div class="prob-card">
+        <div class="prob-head">
+          <div class="prob-rank-title"><div class="prob-rank">${p.rank}</div><div class="prob-title">${p.title}</div></div>
+          <div class="status-badge ${p.status}">${statusLabel[p.status]}</div>
+        </div>
+        <div class="prob-part problem"><div class="k">Problem</div><div class="v">${p.problem}</div></div>
+        <div class="prob-part"><div class="k">Description</div><div class="v">${p.description}</div></div>
+        <div class="prob-part"><div class="k">Solution</div><div class="v">${p.solution}</div></div>
+        <div class="prob-part"><div class="k">Source</div><div class="v"><a href="${p.link}" target="_blank" rel="noopener">${p.link} ↗</a></div></div>
+      </div>`).join('')}</div>`;
+  el.appendChild(ideaSec);
+
+  // render bar chart after insertion (needs DOM)
+  requestAnimationFrame(() => {
+    const chartEl = document.getElementById(chartId);
+    const top10 = d.chart;
+    const values = top10.map(p => parseSize(p.size));
+    const logValues = values.map(v => Math.log10(v + 1));
+    const maxLog = Math.max(...logValues);
+    top10.forEach((p, i) => {
+      const pct = (logValues[i] / maxLog) * 100;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const shortTitle = p.title.length > 34 ? p.title.slice(0,34)+'…' : p.title;
+      row.innerHTML = `<div class="bar-label">${p.rank}. ${shortTitle}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><div class="bar-value">${p.size}</div>`;
+      chartEl.appendChild(row);
+    });
+  });
+
+  return el;
+}
+
+function showTab(dateKey) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.date === dateKey));
+  const content = document.getElementById('tab-content');
+  content.innerHTML = '';
+  content.appendChild(renderDay(dateKey));
+}
+
+const tabBar = document.getElementById('tab-bar');
+const dateKeys = Object.keys(days);
+dateKeys.forEach((k, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'tab-btn' + (i === 0 ? ' active' : '');
+  btn.dataset.date = k;
+  btn.textContent = days[k].label;
+  btn.onclick = () => showTab(k);
+  tabBar.appendChild(btn);
+});
+showTab(dateKeys[0]);
+</script>
+</body>
+</html>
